@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Movie_Detail</title>
+
+      <style>
+      h1 {
+          font-size: 36pt;
+      }
+      .subtext {
+          color: gray;
+          font-size: 24pt;
+      }
+
+      .ratingValue {
+          color: GoldenRod;
+          font-size: 20pt;
+      }
+
+      .director {
+          color: red;
+          font-size: 24pt
+      }
+
+
+  </style>
+</head>
+<body>
+    <div class="title_block">
+        <div class="title_bar_wrapper">
+            <div class="ratings_wrapper">
+                <div class="imdbRating", itemtype="http://schema.org/AggregateRating" itemscope="" itemprop="aggregateRating">
+                    <div class="ratingValue">
+                        Rating:
+                        <span itemprop="=ratingValue">{{ rating }}</span>
+                        <span class="grey">/</span><span class="grey" itemprop="bestRating">10</span>
+                    </div>
+                </div>
+            </div>
+            <div class="titleBar">
+                <div class="primary_ribbon">
+                    <div class="ribbonize" data-tconst="tt0111161" data-caller-name="title"></div>
+                    <div class="wlb_dropdown_btn btn2_wrapper btn2_active wlb_dropdown" data-tconst="tt0111161" data-size="large" data-caller-name="title" data-type="primary"></div>
+                    <div class="wlb_dropdown_list" style="display:none"></div>
+                </div>
+                <div class="title_wrapper">
+                    <h1 class="">{{ movietitle }}</h1>
+                    <h1 class=""> Rank: {{ rank }}</h1>
+                    <div class="subtext">
+                        {{ genre }}
+                        <span class="ghost">|</span>
+                        <time datetime="PT142M">
+                        {{ length }}min
+                        </time>
+                        <span class="ghost">|</span>
+                        {{ category }}
+                        <span class="ghost">|</span>
+                        {{ release_date}} ({{ release_country }})
+                    </div>
+                </div>
+                <div class="director">
+                    Director: {{ director }}
+                </div>
+            </div>
+        </div>
+    </div>
+    <img src={{ img }}>
+</body>
+</html>

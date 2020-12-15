@@ -17,7 +17,7 @@ DATABASE_FILE = "imdb.sqlite"
 
 class Movie():
     def __init__(self, name=None, rank=None, category=None, length=None, genre=None, release_date=None, release_country=None,
-                 rating=None, director=None, stars=None):#, relevant_movies=None):
+                 rating=None, director=None, stars=None, image=None):#, relevant_movies=None):
         """Initiate the movie instance
         Parameters
         ----------
@@ -43,20 +43,20 @@ class Movie():
         stars: dictionary
             A dictionary whose keys are the star names and values are their corresponding url.
 
-        # relevant_movies: dictionary
-        #     A dictionary whose keys are movie names and values are their corresponding url.
+        image: string
+            A string corresponds to the url of the image of the movie.
         """
         self.name = name
         self.rank = rank
         self.category = category
         self.length = length
         self.genre = genre
-        self.release_date = release_date
+        self.release_date = self.transform_date(release_date)
         self.release_country = release_country
         self.rating = rating
         self.director = director
         self.stars = stars
-        #self.relevant_movie = relevant_movies
+        self.image = image
 
     def info(self):
         """Return the information of the movie
@@ -72,8 +72,9 @@ class Movie():
         Rank: {rank}                Rating:{rating}
         {genre} | {length} mins | {category} | {release_date} | {release_country}
         Director:{diretor}
+        Image: {image}
         '''.format(name=self.name, rank=self.rank, rating=self.rating, genre=self.genre, length=self.length, category=" ".join(self.category),
-        release_date=self.release_date, release_country=self.release_country, director=list(self.director.keys())[0])
+        release_date=self.release_date, release_country=self.release_country, director=list(self.director.keys())[0], image=self.image)
 
         return info
 
@@ -234,16 +235,22 @@ def build_movie_instances(movie_url):
     for star in stars_info[:-1]:    # ignore 'See full cast&crew' link
         stars[star.get_text(strip=True)]=BASE_URL+star['href']
 
-    # relevant_movies={}
-    # relevant_movies_info = soup.find('div', class_='rec_wrapper').find_all('div', class_="rec_overview")
-    # for relevant_mv in relevant_movies_info:
-    #     relevant_mv_info = relevant_mv.find('div', class_='rec-title').find('a')
-    #     relevant_movies[relevant_mv_info.get_text(strip=True)]=BASE_URL+relevant_mv_info['href']
+    image_url=BASE_URL+soup.find('div', class_='poster').find('a')['href']
+    if image_url in cache:
+        print('Using Cache')
+        image = cache[image_url]
+    else:
+        print('Fetching')
+        resp_image = requests.get(image_url)
+        soup_image = BeautifulSoup(resp_image.text, 'lxml')
+        image = soup_image.find('meta',property='twitter:image').attrs['content']
+        cache[image_url] = image
+        save_cache(cache)
 
     return Movie(name=name, rank=rank, category=category, length=length, genre=genre, release_date=release_date, release_country=release_country,
-                 rating=rating, director=director, stars=stars)#, relevant_movies=relevant_movies)
+                 rating=rating, director=director, stars=stars, image=image)
 
-def get_director_knowfor(director_page_url):
+def get_director_knownfor(director_page_url):
     """Get director's famous movies
 
     Parameters
@@ -271,10 +278,10 @@ def get_director_knowfor(director_page_url):
         save_cache(cache)
 
     knownfor = {}
-    dir_poster = soup.find('img', id='name_poster')['src']
+    dir_poster = soup.find('img', id='name-poster')['src']
     knownfor_info = soup.find('div', id='knownfor').find_all('div', class_='knownfor-title')
     for work_source in knownfor_info:
-        work_info = work_source.find('div', class_='knownfor_title_role').find('a')
+        work_info = work_source.find('div', class_='knownfor-title-role').find('a')
         poster_source = work_source.find('div', class_='uc-add-wl-widget-container').find('img')['src']
         knownfor[work_info.get_text(strip=True)]=(BASE_URL+work_info['href'], poster_source)
 
@@ -298,7 +305,6 @@ def get_top_ranked_movies(movie_url_dict, top_num=250):
     top_movies = []
     limit_num = min(len(movie_url_dict), top_num)
     for i, movie in enumerate(movie_url_dict):
-        print(i)
         if i >= limit_num:
             break
         else:
@@ -352,6 +358,7 @@ def create_sql_tables():
             "ReleaseCountry" TEXT NOT NULL,
             "Rating"        REAL NOT NULL,
             "DirectorId"    INTEGER NOT NULL,
+            "Image"         TEXT,
             FOREIGN KEY ("DirectorId") REFERENCES Directors("Id")
         );
     '''
@@ -410,12 +417,12 @@ def insert_movies(movies, url2fk):
 
     insert_command = '''
         INSERT INTO Movies
-        VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     '''
 
     for movie in movies:
         directorId = url2fk[list(movie.director.values())[0]]
-        values = [movie.name, movie.rank, " ".join(movie.category), movie.length, movie.genre, movie.release_date, movie.release_country, movie.rating, directorId]
+        values = [movie.name, movie.rank, " ".join(movie.category), movie.length, movie.genre, movie.release_date, movie.release_country, movie.rating, directorId, movie.image]
         cur.execute(insert_command, values)
 
     conn.commit()
@@ -448,7 +455,7 @@ def insert_directors(directors):
 
 def get_top_k_movies_command(top_k):
     command = '''
-    SELECT MovieTitle, Rank, Category, Length, Genre, ReleaseDate, ReleaseCountry, Rating, FirstName||' '||LastName
+    SELECT MovieTitle, Rank, Category, Length, Genre, ReleaseDate, ReleaseCountry, Rating, FirstName||' '||LastName, Image
     FROM Movies
         JOIN Directors
             ON Movies.DirectorId = Directors.Id
@@ -497,7 +504,7 @@ def get_most_popular_director(top_k):
     command = '''
     SELECT FullName, COUNT(*), Link
     FROM
-        (SELECT MovieTitle, Rank, Category, Length, Genre, ReleaseDate, ReleaseCountry, Rating, FirstName||' '||LastName AS FullName, Link
+        (SELECT MovieTitle, Rank, Category, Length, Genre, ReleaseDate, ReleaseCountry, Rating, Image, FirstName||' '||LastName AS FullName, Link
         FROM Movies
             JOIN Directors
                 ON Movies.DirectorId = Directors.Id
@@ -524,6 +531,73 @@ def release_date_plot(date_distribution):
     fig = go.Figure(data = bar_data, layout = basic_layout)
 
     fig.show()
+
+
+
+#############################################################
+# flask part ################################################
+#############################################################
+app = Flask(__name__)
+
+@app.route('/')
+def homepage():
+    return render_template('home.html')
+
+@app.route('/top_movies/<top_k>', methods=['POST', 'GET'])
+def top_movies_render(top_k):
+    '''render the top k movies in the chrome
+    '''
+    if request.method == 'POST':
+        top_k = request.form['top_k']
+    top_k_movies = get_top_k_movies(int(top_k))
+    tkm = [(m[0], m[1]) for m in top_k_movies]
+    return render_template('movie_list.html', movies=tkm)
+
+@app.route('/movies/<no>')
+def movie_detail_render(no):
+    '''render the chosen movie detail page
+    '''
+    movies = get_top_k_movies(250)
+    movie = movies[int(no)-1]
+    return render_template('movie_detail.html',
+                           movietitle=movie[0], rank=movie[1],
+                           category=movie[2], length=movie[3],
+                           genre=movie[4],release_date=movie[5],
+                           release_country=movie[6],rating=movie[7],
+                           director=movie[8], img=movie[9])
+
+@app.route('/popular_director/<top_k>')
+def popular_director(top_k):
+    '''render popular directors in the page
+    '''
+    directors = get_most_popular_director(top_k)
+    return render_template('director_list.html', directors=directors, k=top_k)
+
+@app.route('/<nm>/knownfor/<url>')
+def director_knownfor_render(nm, url):
+    '''render the page of diretor and his/her famous movies
+    '''
+    poster, knownfor = get_director_knownfor(url.replace('_', '/'))
+
+    return render_template('director_detail.html', name=nm.replace('-', ' '), poster=poster, movies=knownfor)
+
+@app.route('/distribution_of_release_date/<top_k>')
+def distribution_of_release_date(top_k):
+    '''plot the bar plot of the distribution of release date in flask
+    '''
+    date_distribution = get_distribution_of_release_date(int(top_k))
+
+    xvals = list(date_distribution.keys())
+    yvals = list(date_distribution.values())
+
+    bar_data = go.Bar(x=xvals, y=yvals, width=0.6)
+    basic_layout = go.Layout(
+                            xaxis = go.XAxis(domain = [0,0.6]))
+    fig = go.Figure(data = bar_data, layout = basic_layout)
+
+    div = fig.to_html(full_html=False)
+    return render_template("plot.html", plot_div=div, top_k=top_k)
+
 
 if __name__ == '__main__':
 
@@ -557,6 +631,13 @@ if __name__ == '__main__':
         create_sql_tables()
         url2fk = insert_directors(directors)
         insert_movies(movies_top_250, url2fk)
+
+    ##################################################
+    # Part 3: Showing information of the data by Flask app
+    ##################################################
+
+    print("run app")
+    app.run(debug=True)
 
 
 
