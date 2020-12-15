@@ -384,22 +384,6 @@ def create_sql_tables():
     conn.commit()
     conn.close()
 
-# def insert_raw_into_table(db_cur, table_name, values):
-#     '''insert row in
-#     '''
-#     value_format = ""
-#     value_format += "(NULL"
-#     for i in range(len(values)):
-#         value_format += ", ?"
-#     value_format += ")"
-
-#     insert_command = '''
-#         INSERT INTO {TABLE}
-#         VALUES {VALUE}
-#     '''.format(TABLE=table_name, VALUE=value_format)
-
-#     db_cur.execute(insert_command, values)
-
 
 def insert_movies(movies, url2fk):
     ''' insert row in Movie table
